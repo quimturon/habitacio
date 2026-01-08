@@ -1,0 +1,90 @@
+name: ESP32 Build & Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "version.txt"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: |
+          pip install --upgrade pip
+          pip install platformio
+
+      - name: Build firmware (esp32dev)
+        run: pio run -e esp32dev
+
+      - name: Prepare release files
+        id: prepare-release
+        run: |
+          mkdir -p release
+          cp .pio/build/esp32dev/firmware.bin release/firmware.bin
+
+          # Llegir versió actual i incrementar patch
+          if [ -f version.txt ]; then
+            CURRENT_VERSION=$(cat version.txt)
+          else
+            CURRENT_VERSION="1.0.0"
+          fi
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          PATCH=$((PATCH + 1))
+
+          if [ "$PATCH" -ge 10 ]; then
+            PATCH=0
+            MINOR=$((MINOR + 1))
+          fi
+
+          VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "$VERSION" > release/version.txt
+          echo "Generated OTA version: $VERSION"
+
+          # Exportar com a output per als altres passos
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update version.txt in repository
+        run: |
+          VERSION=${{ steps.prepare-release.outputs.version }}
+          echo "$VERSION" > version.txt
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add version.txt
+          git commit -m "chore: bump OTA version to $VERSION" || echo "No changes"
+          git push
+
+      - name: Tag release with version
+        run: |
+          VERSION=${{ steps.prepare-release.outputs.version }}
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.prepare-release.outputs.version }}
+          name: "${{ steps.prepare-release.outputs.version }}"
+          files: |
+            release/firmware.bin
+            release/version.txt
+
