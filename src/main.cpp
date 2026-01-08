@@ -37,6 +37,7 @@ struct WiFiCred {
 String FW_VERSION;
 bool otaInProgress = false;
 bool needOTA = false;
+bool otaConfirmation = false;
 const char* releasesAPI  = "https://api.github.com/repos/quimturon/habitacio/releases/latest";
 const char* firmwareURL = "https://github.com/quimturon/habitacio/releases/latest/download/firmware.bin";
 
@@ -132,9 +133,10 @@ void updateLCD2004(int menu, int menuIndex) {
   if (menu == 0){
         lcd2004.setCursor(0,0); lcd2004.printf("Firware actual:%s", FW_VERSION.c_str());
         if (needOTA) {
-            lcd2004.setCursor(0,1); lcd2004.print("Actualitzant...");
+            lcd2004.setCursor(0,1); lcd2004.printf("Versio nova dispo:%s", FW_VERSION.c_str());
+            lcd2004.setCursor(0,3); lcd2004.print("Actualitzant...");
         } else {
-            lcd2004.setCursor(0,1); lcd2004.print("Tot actualitzat");
+            lcd2004.setCursor(0,2); lcd2004.print("Tot actualitzat");
         }
   } else if (menu == 1){
         lcd2004.setCursor(0,0); lcd2004.print("Time Settings");
@@ -244,9 +246,6 @@ bool getFirmwareURL(String &binURL) {
 }
 
 void performOTA(const String &newVersionStr) {
-    FW_VERSION = newVersionStr; // actualitza versió a memòria abans de l'OTA
-    saveVersion(newVersionStr);
-
     display.clearDisplay();
     display.setTextSize(1);
     display.setCursor(0,0);
@@ -340,6 +339,8 @@ void performOTA(const String &newVersionStr) {
         display.setCursor(0,0);
         display.println("OTA OK!");
         display.println("Reiniciant...");
+        FW_VERSION = newVersionStr;
+        saveVersion(newVersionStr);
         display.display();
         delay(2000);
         ESP.restart();
@@ -589,29 +590,31 @@ void loop() {
     buttonState10 = digitalRead(ENC5_BTN);
 
     // Detectar canvi (només quan es prem)
-    // Menu 1 = Lighting Mode
+    // Menu 1 = Firmware Update
     // Menu 2 = Time Set
-    // Menu 3 = Firmware Update
+    // Menu 3 = lighting
     if (lastButtonState1 == HIGH && buttonState1 == LOW) {
         reescriure = true;
         if (menu == 0) {
-            //Canviar llum 1
+            if (otaConfirmation) {
+                String newVersion;
+                if (checkForUpdate(newVersion)) {
+                    Serial.println("Nova versió disponible. Inici OTA...");
+                    needOTA = true;
+                    updateLCD2004(menu, menuIndex);
+                } else {
+                    Serial.println("Tens la última versió.");
+                    needOTA = false;
+                    updateLCD2004(menu, menuIndex);
+                }
+            }else{
+                updateLCD2004(menu, menuIndex);
+            }      
         }
         if (menu == 1) {
             //Accio hora 1
-        }
-        if (menu == 2) {
-            String newVersion;
-            if (checkForUpdate(newVersion)) {
-                Serial.println("Nova versió disponible. Inici OTA...");
-                needOTA = true;
-                updateLCD2004(menu, menuIndex);
-                performOTA(newVersion);
-            } else {
-                Serial.println("Tens la última versió.");
-                needOTA = false;
-                updateLCD2004(menu, menuIndex);
-            }
+        }else if (menu == 2) {
+            // canviar llum
         }
     }
     if (lastButtonState2 == HIGH && buttonState2 == LOW) {
