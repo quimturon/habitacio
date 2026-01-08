@@ -687,10 +687,10 @@ void loop() {
     lastButtonState10 = buttonState10;
 
 
-    if (reescriure) {
-    updateLCD2004(menu, menuIndex);
-    updateLCD1602(menu, menuIndex);
     updateOLED(buf);
-    reescriure = false;
+    if (reescriure) {
+        updateLCD2004(menu, menuIndex);
+        updateLCD1602(menu, menuIndex);
+        reescriure = false;
     }
 }
