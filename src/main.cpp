@@ -25,7 +25,7 @@
 // ================= MENU SETTING =================
 int menu = 0;
 int menuIndex = 0;
-
+DateTime lastUpdate;
 
 // --- OLED --- 
 #define SCREEN_WIDTH 128
@@ -42,7 +42,7 @@ struct WiFiCred {
 // --- OTA ---
 String FW_VERSION;
 bool otaInProgress = false;
-bool needOTA = false;
+int needOTA = 0;
 const char* releasesAPI  = "https://api.github.com/repos/quimturon/habitacio/releases/latest";
 const char* firmwareURL = "https://github.com/quimturon/habitacio/releases/latest/download/firmware.bin";
 
@@ -137,31 +137,31 @@ void updateLCD2004(int menu, int menuIndex) {
   lcd2004.clear();
   if (menu == 0){
         lcd2004.setCursor(0,0); lcd2004.printf("Firware actual:%s", FW_VERSION.c_str());
-        if (needOTA) {
+        if (needOTA==1) {
             lcd2004.setCursor(0,1); lcd2004.printf("Versio nova:%s", FW_VERSION.c_str());
             lcd2004.setCursor(0,3); lcd2004.print("Actualitzant...");
-        } else {
-            lcd2004.setCursor(0,2); lcd2004.print("Tot actualitzat");
+        } else if (needOTA==2) {
+            lcd2004.setCursor(0,2); lcd2004.print("Tot actualitzat el:");
+            lcd2004.setCursor(0,3);
+            char buf[17]; // DD/MM/YYYY HH:MM (16 caràcters + null)
+            sprintf(buf, "%02d/%02d/%04d %02d:%02d",
+            lastUpdate.day(), lastUpdate.month(), lastUpdate.year(),
+            lastUpdate.hour(), lastUpdate.minute());
+            lcd2004.print(buf);
         }
   } else if (menu == 1){
-        lcd2004.setCursor(0,0); lcd2004.print("Time Settings");
-  } else if (menu == 2){
-        lcd2004.setCursor(0,0); lcd2004.print("Lightning");
+        lcd2004.setCursor(0,0); lcd2004.print("Despatx: ON");
   }
 }
 
 void updateLCD1602(int menu, int menuIndex) {
     lcd1602.clear();
     if (menu == 0){
-        lcd1602.setCursor(0,0); lcd1602.print("Firmware Update");
+        lcd1602.setCursor(4,0); lcd1602.print("Firmware");
     }
     else if (menu == 1){
-        lcd1602.setCursor(0,0); lcd1602.print("Time Set");
+        lcd1602.setCursor(5,0); lcd1602.print("Llums");
     }
-    else if (menu == 2){
-        lcd1602.setCursor(0,0); lcd1602.print("Lighting");
-    }
-
 }
 
 
@@ -304,20 +304,19 @@ void loop() {
             String newVersion;
             if (checkForUpdate(newVersion)) {
                 Serial.println("Nova versió disponible. Inici OTA...");
-                needOTA = true;
+                needOTA = 1;
                 updateLCD2004(menu, menuIndex);
                 reescriure = true;
                 performOTA(newVersion);
             } else {
                 Serial.println("Tens la última versió.");
-                needOTA = false;
+                lastUpdate = rtc.now();
+                needOTA = 2;
                 updateLCD2004(menu, menuIndex);
             }   
         }
         if (menu == 1) {
             //Accio hora 1
-        }else if (menu == 2) {
-            // canviar llum
         }
     }
     if (lastButtonState2 == HIGH && buttonState2 == LOW) {
@@ -329,9 +328,6 @@ void loop() {
         if (menu == 1) {
             // Acció menú 1
         }
-        if (menu == 2) {
-            // Acció menú 2
-        }
     }
     if (lastButtonState3 == HIGH && buttonState3 == LOW) {
         reescriure  = true;
@@ -341,9 +337,6 @@ void loop() {
         }
         if (menu == 1) {
             // Acció menú 1
-        }
-        if (menu == 2) {
-            // Acció menú 2
         }
     }
     if (lastButtonState4 == HIGH && buttonState4 == LOW) {
@@ -355,12 +348,9 @@ void loop() {
         if (menu == 1) {
             // Acció menú 1
         }
-        if (menu == 2) {
-            // Acció menú 2
-        }
     }
     if (lastButtonState5 == HIGH && buttonState5 == LOW) {
-        if (menu > 1) menu = 0;
+        if (menu == 1) menu = 0;
         else menu += 1;   // canvia de menú
         reescriure = true;
     }
