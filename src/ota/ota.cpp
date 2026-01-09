@@ -42,19 +42,20 @@ String readVersion() {
 }
 
 // ================= VERSION COMPARE =================
-static bool isVersionNewer(const String& a, const String& b) {
-    int majorA=0, minorA=0, patchA=0;
-    int majorB=0, minorB=0, patchB=0;
+static bool isVersionNewer(const String& current, const String& latest) {
+    int majorC=0, minorC=0, patchC=0;
+    int majorL=0, minorL=0, patchL=0;
 
-    sscanf(a.c_str(), "%d.%d.%d", &majorA, &minorA, &patchA);
-    sscanf(b.c_str(), "%d.%d.%d", &majorB, &minorB, &patchB);
+    sscanf(current.c_str(), "%d.%d.%d", &majorC, &minorC, &patchC);
+    sscanf(latest.c_str(), "%d.%d.%d", &majorL, &minorL, &patchL);
 
-    if (majorB > majorA) return true;
-    if (majorB < majorA) return false;
-    if (minorB > minorA) return true;
-    if (minorB < minorA) return false;
-    return patchB > patchA;
+    if (majorL > majorC) return true;
+    if (majorL < majorC) return false;
+    if (minorL > minorC) return true;
+    if (minorL < minorC) return false;
+    return patchL > patchC;
 }
+
 
 // ================= CHECK UPDATE =================
 bool checkForUpdate(String &newVersion) {
@@ -89,6 +90,8 @@ void performOTA(const String &newVersion) {
     display.setCursor(0,0);
     display.println("Inici OTA...");
     display.display();
+    
+    FW_VERSION = newVersion;
 
     WiFiClientSecure client;
     client.setInsecure();
@@ -138,7 +141,6 @@ void performOTA(const String &newVersion) {
     }
 
     if (Update.end()) {
-        FW_VERSION = newVersion;
         saveVersion(newVersion);
         delay(2000);
         ESP.restart();

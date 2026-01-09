@@ -41,6 +41,7 @@ struct WiFiCred {
 
 // --- OTA ---
 String FW_VERSION;
+String NEW_VERSION;
 bool otaInProgress = false;
 int needOTA = 0;
 const char* releasesAPI  = "https://api.github.com/repos/quimturon/habitacio/releases/latest";
@@ -136,22 +137,28 @@ void IRAM_ATTR readEncoder4() { enc5.readEncoder_ISR(); }
 void updateLCD2004(int menu, int menuIndex) {
   lcd2004.clear();
   if (menu == 0){
-        lcd2004.setCursor(0,0); lcd2004.printf("Firware actual:%s", FW_VERSION.c_str());
-        if (needOTA==1) {
-            lcd2004.setCursor(0,1); lcd2004.printf("Versio nova:%s", FW_VERSION.c_str());
-            lcd2004.setCursor(0,3); lcd2004.print("Actualitzant...");
-        } else if (needOTA==2) {
-            lcd2004.setCursor(0,2); lcd2004.print("Tot actualitzat el:");
+        lcd2004.setCursor(0,0); 
+        lcd2004.print("Firmware: "); 
+        lcd2004.print(FW_VERSION);
+
+        if (needOTA == 1) {
+            lcd2004.setCursor(0,2); lcd2004.print("Nova versio:"); 
+            lcd2004.print(NEW_VERSION);
+            lcd2004.setCursor(0,3); lcd2004.print("Actualitzant..."); 
+
+        } else if (needOTA == 2) {
+            lcd2004.setCursor(0,2); 
+            lcd2004.print("Tot actualitzat el:");
             lcd2004.setCursor(0,3);
-            char buf[17]; // DD/MM/YYYY HH:MM (16 caràcters + null)
-            sprintf(buf, "%02d/%02d/%04d %02d:%02d",
-            lastUpdate.day(), lastUpdate.month(), lastUpdate.year(),
-            lastUpdate.hour(), lastUpdate.minute());
+            char buf[17]; // DD/MM/YYYY HH:MM
+            sprintf(buf, " %02d/%02d/%04d  %02d:%02d",
+                    lastUpdate.day(), lastUpdate.month(), lastUpdate.year(),
+                    lastUpdate.hour(), lastUpdate.minute());
             lcd2004.print(buf);
         }
-  } else if (menu == 1){
+    } else if (menu == 1){
         lcd2004.setCursor(0,0); lcd2004.print("Despatx: ON");
-  }
+    }
 }
 
 void updateLCD1602(int menu, int menuIndex) {
@@ -305,15 +312,15 @@ void loop() {
             if (checkForUpdate(newVersion)) {
                 Serial.println("Nova versió disponible. Inici OTA...");
                 needOTA = 1;
-                updateLCD2004(menu, menuIndex);
-                reescriure = true;
-                performOTA(newVersion);
+                NEW_VERSION = newVersion;          // Guardem per mostrar al menú
+                updateLCD2004(menu, menuIndex);    // Mostrem la nova versió
+                performOTA(newVersion);            // Inici OTA
             } else {
                 Serial.println("Tens la última versió.");
                 lastUpdate = rtc.now();
                 needOTA = 2;
                 updateLCD2004(menu, menuIndex);
-            }   
+            }
         }
         if (menu == 1) {
             //Accio hora 1
