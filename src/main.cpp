@@ -1,20 +1,26 @@
+//llibreries de sistema
 #include <Arduino.h>
 #include <WiFi.h>
 #include <Wire.h>
 #include <SPI.h>
-
+//llibreries de wifi i dades
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <Update.h>
 #include <EEPROM.h>
-
+//llibreries de pantalles
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
 #include <LiquidCrystal_I2C.h>
-
+//llibreries de llums
+#include <Adafruit_NeoPixel.h>
+//llibreries de inputs
 #include <AiEsp32RotaryEncoder.h>
 #include <RTClib.h>
+//llibreries propies
+#include "ota/ota.h"
+#include "wifi/wifi_manager.h"
 
 // ================= MENU SETTING =================
 int menu = 0;
@@ -37,7 +43,6 @@ struct WiFiCred {
 String FW_VERSION;
 bool otaInProgress = false;
 bool needOTA = false;
-bool otaConfirmation = false;
 const char* releasesAPI  = "https://api.github.com/repos/quimturon/habitacio/releases/latest";
 const char* firmwareURL = "https://github.com/quimturon/habitacio/releases/latest/download/firmware.bin";
 
@@ -133,7 +138,7 @@ void updateLCD2004(int menu, int menuIndex) {
   if (menu == 0){
         lcd2004.setCursor(0,0); lcd2004.printf("Firware actual:%s", FW_VERSION.c_str());
         if (needOTA) {
-            lcd2004.setCursor(0,1); lcd2004.printf("Versio nova dispo:%s", FW_VERSION.c_str());
+            lcd2004.setCursor(0,1); lcd2004.printf("Versio nova:%s", FW_VERSION.c_str());
             lcd2004.setCursor(0,3); lcd2004.print("Actualitzant...");
         } else {
             lcd2004.setCursor(0,2); lcd2004.print("Tot actualitzat");
@@ -181,306 +186,6 @@ void debugPrint(const String &msg){
   display.fillRect(0, SCREEN_HEIGHT-8, SCREEN_WIDTH,8,SSD1306_BLACK);
   display.print(msg);
   display.display();
-}
-
-void saveVersion(const String& version) {
-    EEPROM.begin(EEPROM_SIZE);
-    int i = 0;
-    for (; version[i] != '\0' && i < 31; i++) EEPROM.write(VERSION_ADDR + i, version[i]);
-    EEPROM.write(VERSION_ADDR + i, '\0');
-    EEPROM.commit();
-    Serial.println("Firmware version saved to EEPROM.");
-}
-String readVersion() {
-    EEPROM.begin(EEPROM_SIZE);
-    char buffer[32];
-    int i = 0;
-    while (EEPROM.read(VERSION_ADDR + i) != '\0' && i < 31) {
-        buffer[i] = EEPROM.read(VERSION_ADDR + i);
-        i++;
-    }
-    buffer[i] = '\0';
-    return String(buffer);
-}
-
-// --- OTA ---
-bool getFirmwareURL(String &binURL) {
-    if (WiFi.status() != WL_CONNECTED) return false;
-
-    WiFiClientSecure client;
-    client.setInsecure();
-
-    HTTPClient http;
-    http.begin(client, releasesAPI);
-    http.addHeader("User-Agent", "ESP32");
-
-    int httpCode = http.GET();
-    if (httpCode != HTTP_CODE_OK) {
-        Serial.printf("Error GET releases: %d\n", httpCode);
-        http.end();
-        return false;
-    }
-
-    String payload = http.getString();
-    http.end();
-
-    DynamicJsonDocument doc(2048);
-    DeserializationError error = deserializeJson(doc, payload);
-    if (error) {
-        Serial.println("Error parsejant JSON");
-        return false;
-    }
-
-    JsonArray assets = doc["assets"].as<JsonArray>();
-    for (JsonObject asset : assets) {
-        String name = asset["name"].as<String>();
-        if (name == "firmware.bin") {
-            binURL = asset["browser_download_url"].as<String>();
-            Serial.print("Firmware URL: "); Serial.println(binURL);
-            return true;
-        }
-    }
-
-    Serial.println("No s'ha trobat firmware.bin a la release");
-    return false;
-}
-
-void performOTA(const String &newVersionStr) {
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setCursor(0,0);
-    display.println("Inici OTA...");
-    display.display();
-
-    // Obtenir URL del firmware
-    String binURL;
-    if (!getFirmwareURL(binURL)) {
-        Serial.println("No es pot obtenir URL del firmware");
-        display.setCursor(0,10);
-        display.println("Error OTA: no URL");
-        display.display();
-        delay(3000);
-        return;
-    }
-
-    Serial.print("Descarregant firmware: "); Serial.println(binURL);
-
-    WiFiClientSecure clientSecure;
-    clientSecure.setInsecure();
-
-    HTTPClient http;
-    http.begin(clientSecure, binURL);
-    http.addHeader("User-Agent", "ESP32");
-    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-
-    int httpCode = http.GET();
-    Serial.printf("HTTP code: %d\n", httpCode);
-    if (httpCode != HTTP_CODE_OK) {
-        display.setCursor(0,10);
-        display.println("Error HTTP OTA");
-        display.display();
-        delay(3000);
-        http.end();
-        return;
-    }
-
-    int total = http.getSize();
-    if (total <= 0) {
-        display.setCursor(0,10);
-        display.println("Error OTA: mida 0");
-        display.display();
-        delay(3000);
-        http.end();
-        return;
-    }
-
-    WiFiClient *stream = http.getStreamPtr();
-
-    if (!Update.begin(total)) {
-        display.setCursor(0,10);
-        display.println("Update FAIL");
-        display.display();
-        http.end();
-        return;
-    }
-
-    int written = 0;
-    uint8_t buffer[256];
-
-    // Dibuixar contorn barra una sola vegada
-    display.drawRect(0, 20, 128, 10, SSD1306_WHITE);
-    display.display();
-
-    while (http.connected() && written < total) {
-        int r = 0;
-        size_t available = stream->available();
-        if (available) {
-            r = stream->readBytes(buffer, min((int)available, 256));
-            Update.write(buffer, r);
-            written += r;
-        }
-
-        // Netejar només la zona de progress abans de redibuixar
-        display.fillRect(0, 20, 128, 30, SSD1306_BLACK); // neteja barra + percentatge
-        display.drawRect(0, 20, 128, 10, SSD1306_WHITE); // contorn barra
-
-        int w = map(written, 0, total, 0, 128);
-        display.fillRect(0, 20, w, 10, SSD1306_WHITE); // barra progress
-
-        display.setCursor(0, 35);
-        display.printf("%d %%", (written*100)/total); // percentatge
-
-        display.display();
-        delay(10); // petit delay per refrescar OLED
-    }
-
-    if (Update.end()) {
-        display.clearDisplay();
-        display.setCursor(0,0);
-        display.println("OTA OK!");
-        display.println("Reiniciant...");
-        FW_VERSION = newVersionStr;
-        saveVersion(newVersionStr);
-        display.display();
-        delay(2000);
-        ESP.restart();
-    } else {
-        display.clearDisplay();
-        display.setCursor(0,0);
-        display.println("OTA ERROR");
-        display.display();
-    }
-
-    http.end();
-}
-
-// --- Funció per comparar versions ---
-// Retorna true si versionB > versionA
-bool isVersionNewer(const String& versionA, const String& versionB) {
-    int majorA=0, minorA=0, patchA=0;
-    int majorB=0, minorB=0, patchB=0;
-
-    sscanf(versionA.c_str(), "%d.%d.%d", &majorA, &minorA, &patchA);
-    sscanf(versionB.c_str(), "%d.%d.%d", &majorB, &minorB, &patchB);
-
-    if (majorB > majorA) return true;
-    if (majorB < majorA) return false;
-
-    if (minorB > minorA) return true;
-    if (minorB < minorA) return false;
-
-    if (patchB > patchA) return true;
-    return false;
-}
-bool checkForUpdate(String &newVersion) {
-    if (WiFi.status() != WL_CONNECTED) return false;
-
-    WiFiClientSecure client;
-    client.setInsecure(); // HTTPS sense validar certificat
-
-    HTTPClient http;
-    http.begin(client, releasesAPI);
-    http.addHeader("User-Agent", "ESP32"); // Només user-agent
-    int httpCode = http.GET();
-
-    if (httpCode != HTTP_CODE_OK) {
-        Serial.printf("Error GET releases: %d\n", httpCode);
-        http.end();
-        return false;
-    }
-
-    String payload = http.getString();
-    http.end();
-
-    DynamicJsonDocument doc(2048);
-    DeserializationError error = deserializeJson(doc, payload);
-    if (error) {
-        Serial.println("Error parsejant JSON");
-        return false;
-    }
-
-    newVersion = doc["tag_name"].as<String>();
-    newVersion.replace("v", ""); // treu la v si cal
-
-    Serial.print("FW local: "); Serial.print(FW_VERSION);
-    Serial.print(" | FW remote: "); Serial.println(newVersion);
-
-    return isVersionNewer(FW_VERSION, newVersion);
-}
-
-// Funció per carregar SSID i password des de l'EEPROM
-void loadWiFiCredentials(char* ssid, char* pass) {
-    EEPROM.begin(160);
-
-    // Llegir SSID
-    int i = 0;
-    while (i < 63 && EEPROM.read(i) != '\0') {
-        ssid[i] = EEPROM.read(i);
-        i++;
-    }
-    ssid[i] = '\0';
-
-    // Llegir password
-    int j = 0;
-    while (j < 63 && EEPROM.read(64 + j) != '\0') {
-        pass[j] = EEPROM.read(64 + j);
-        j++;
-    }
-    pass[j] = '\0';
-}
-
-// --- Wi-Fi ---
-bool setup_wifi() {
-    char ssid[64];
-    char pass[64];
-    loadWiFiCredentials(ssid, pass);
-    Serial.print("SSID: "); Serial.println(ssid);
-Serial.print("Password: "); Serial.println(pass);
-    Serial.println("Connectant a WiFi...");
-
-    WiFi.mode(WIFI_STA);
-
-    WiFi.begin(ssid, pass);
-
-    unsigned long start = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
-        delay(500);
-        Serial.print(".");
-    }
-    if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWiFi connectat!");
-    Serial.print("IP: "); Serial.println(WiFi.localIP());
-    return true;
-    } else {
-        Serial.println("\nWiFi ERROR!");
-        Serial.print("Status code: "); Serial.println(WiFi.status());
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\nWiFi connectat!");
-        Serial.print("SSID: ");
-        Serial.println(ssid);
-        Serial.print("IP: ");
-        Serial.println(WiFi.localIP());
-        return true;
-    }else{
-      Serial.println("\nWiFi ERROR!");
-    }
-
-    WiFi.disconnect(true);
-    delay(500);
-    return false; 
-}
-void ensureWiFi() {
-    static unsigned long lastAttempt = 0;
-
-    if (WiFi.status() == WL_CONNECTED) return;
-
-    if (millis() - lastAttempt < 15000) return; // evita bucle constant
-
-    lastAttempt = millis();
-    Serial.println("⚠️ WiFi perdut, reconnectant...");
-    setup_wifi();
 }
 
 // --- Setup ---
@@ -596,20 +301,18 @@ void loop() {
     if (lastButtonState1 == HIGH && buttonState1 == LOW) {
         reescriure = true;
         if (menu == 0) {
-            if (otaConfirmation) {
-                String newVersion;
-                if (checkForUpdate(newVersion)) {
-                    Serial.println("Nova versió disponible. Inici OTA...");
-                    needOTA = true;
-                    updateLCD2004(menu, menuIndex);
-                } else {
-                    Serial.println("Tens la última versió.");
-                    needOTA = false;
-                    updateLCD2004(menu, menuIndex);
-                }
-            }else{
+            String newVersion;
+            if (checkForUpdate(newVersion)) {
+                Serial.println("Nova versió disponible. Inici OTA...");
+                needOTA = true;
                 updateLCD2004(menu, menuIndex);
-            }      
+                reescriure = true;
+                performOTA(newVersion);
+            } else {
+                Serial.println("Tens la última versió.");
+                needOTA = false;
+                updateLCD2004(menu, menuIndex);
+            }   
         }
         if (menu == 1) {
             //Accio hora 1
