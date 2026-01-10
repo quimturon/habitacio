@@ -171,8 +171,10 @@ void updateLCD2004(int menu, int menuIndex) {
             lcd2004.print(buf);
         }
     } else if (menu == 1){
-        lcd2004.setCursor(0,0); lcd2004.printf("Llum 0: %d%%", ledStrips[0].targetBrightness);
-        lcd2004.setCursor(0,1); lcd2004.printf("Llum 1: %d%%", ledStrips[1].targetBrightness);
+        lcd2004.setCursor(0,0); lcd2004.printf("Despatx  %d%%", ledStrips[0].targetBrightness);
+        lcd2004.setCursor(0,1); lcd2004.printf("Paret    %d%%", ledStrips[1].targetBrightness);
+        lcd2004.setCursor(0,2); lcd2004.printf("Tauleta  %d%%", ledStrips[2].targetBrightness);
+        lcd2004.setCursor(0,3); lcd2004.printf("General  %d%%", ledStrips[3].targetBrightness);
     }
 }
 
