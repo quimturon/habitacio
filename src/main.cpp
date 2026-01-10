@@ -23,11 +23,13 @@
 #include "ota/ota.h"
 #include "wifi/wifi_manager.h"
 #include "neopixel/leds.h"
+#include "ntp/ntp.h"
 
 // ================= MENU SETTING =================
 int menu = 0;
 int menuIndex = 0;
-DateTime lastUpdate;
+DateTime lastUpdateOTA;
+DateTime lastUpdateRTC;
 
 // --- OLED --- 
 #define SCREEN_WIDTH 128
@@ -65,6 +67,8 @@ uint8_t targetBri0;
 uint8_t targetBri1;
 uint8_t lastBri0;
 uint8_t lastBri1;
+int minBri = 5;
+int maxBri = 255;
 uint8_t briSteps = 25;
 
 // ================= PIN DEFINITIONS =================
@@ -133,6 +137,7 @@ LiquidCrystal_I2C lcd1602(0x24, 16, 2);
 
 // ================= RTC =================
 RTC_DS3231 rtc;
+int lastMinute = -1;
 
 // ================= FUNCTION PROTOTYPES =================
 void updateLCD2004();
@@ -166,8 +171,8 @@ void updateLCD2004(int menu, int menuIndex) {
             lcd2004.setCursor(0,3);
             char buf[17]; // DD/MM/YYYY HH:MM
             sprintf(buf, "%02d/%02d/%04d %02d:%02d",
-                    lastUpdate.day(), lastUpdate.month(), lastUpdate.year(),
-                    lastUpdate.hour(), lastUpdate.minute());
+                    lastUpdateOTA.day(), lastUpdateOTA.month(), lastUpdateOTA.year(),
+                    lastUpdateOTA.hour(), lastUpdateOTA.minute());
             lcd2004.print(buf);
         }
     } else if (menu == 1){
@@ -175,6 +180,22 @@ void updateLCD2004(int menu, int menuIndex) {
         lcd2004.setCursor(0,1); lcd2004.printf("Paret    %d%%", ledStrips[1].targetBrightness);
         lcd2004.setCursor(0,2); lcd2004.printf("Tauleta  %d%%", ledStrips[2].targetBrightness);
         lcd2004.setCursor(0,3); lcd2004.printf("General  %d%%", ledStrips[3].targetBrightness);
+    }
+    else if (menu == 2) {
+        lcd2004.setCursor(0,0);
+        lcd2004.print("Hora RTC");
+
+        DateTime now = rtc.now();
+        char buf[21];
+        sprintf(buf, "%02d/%02d/%04d",
+                now.day(), now.month(), now.year());
+        lcd2004.setCursor(0,1);
+        lcd2004.print(buf);
+
+        sprintf(buf, "%02d:%02d:%02d",
+                now.hour(), now.minute(), now.second());
+        lcd2004.setCursor(0,2);
+        lcd2004.print(buf);
     }
 }
 
@@ -185,6 +206,9 @@ void updateLCD1602(int menu, int menuIndex) {
     }
     else if (menu == 1){
         lcd1602.setCursor(5,0); lcd1602.print("Llums");
+    }
+    else if (menu == 2){
+        lcd1602.setCursor(6,0); lcd1602.print("RTC");
     }
 }
 
@@ -203,7 +227,6 @@ void updateOLED(char* buf) {
   display.display();
 }
 
-// ================= DEBUG =================
 void debugPrint(const String &msg){
   Serial.println(msg);
   display.setCursor(0, SCREEN_HEIGHT-8);
@@ -211,7 +234,6 @@ void debugPrint(const String &msg){
   display.print(msg);
   display.display();
 }
-
 
 // --- Setup ---
 void setup() {
@@ -250,6 +272,10 @@ void setup() {
 
     // Setup LEDs i ESP-NOW
     setupLEDs();
+    targetBri0=0;
+    targetBri1=0;
+    bri0=0;
+    bri1=0;
 
     xTaskCreatePinnedToCore(
         LEDTask,
@@ -310,6 +336,11 @@ void setup() {
 
     // RTC
     if(!rtc.begin()) debugPrint("No s'ha trobat el RTC!");
+    ntpInit(
+        "pool.ntp.org",
+        3600,   // GMT+1
+        3600    // Horari d'estiu
+    );
 
 }
 
@@ -320,6 +351,10 @@ void loop() {
     // --- RTC ---
     DateTime now = rtc.now();
     char buf[9]; snprintf(buf,sizeof(buf),"%02d:%02d", now.hour(), now.minute());
+    if (now.minute() != lastMinute) {
+        lastMinute = now.minute();
+        reescriure = true;
+    }
 
     // --- Encoders ---
     bool encoderMoved = false;
@@ -327,8 +362,8 @@ void loop() {
     if(enc1.encoderChanged()) { // controla la tira 1
         encVal[0] = enc1.readEncoder();
         int delta = enc1.readEncoder();
-        if(delta>0) ledStrips[0].targetBrightness = min(ledStrips[0].targetBrightness+briSteps,255);
-        else if(delta<0) ledStrips[0].targetBrightness = max(ledStrips[0].targetBrightness-briSteps,0);
+        if(delta>0) ledStrips[0].targetBrightness = min(ledStrips[0].targetBrightness+briSteps,maxBri);
+        else if(delta<0) ledStrips[0].targetBrightness = max(ledStrips[0].targetBrightness-briSteps,minBri);
         enviaBrillantor(0);
         enc1.reset();
         reescriure = true;
@@ -337,8 +372,8 @@ void loop() {
     if(enc2.encoderChanged()) { // controla la tira 1
         encVal[1] = enc2.readEncoder();
         int delta = enc2.readEncoder();
-        if(delta>0) ledStrips[1].targetBrightness = min(ledStrips[1].targetBrightness+briSteps,255);
-        else if(delta<0) ledStrips[1].targetBrightness = max(ledStrips[1].targetBrightness-briSteps,5);
+        if(delta>0) ledStrips[1].targetBrightness = min(ledStrips[1].targetBrightness+briSteps,maxBri);
+        else if(delta<0) ledStrips[1].targetBrightness = max(ledStrips[1].targetBrightness-briSteps,minBri);
         enviaBrillantor(1);
         enc2.reset();
         reescriure = true;
@@ -365,8 +400,8 @@ void loop() {
 
     // Detectar canvi (només quan es prem)
     // Menu 1 = Firmware Update
-    // Menu 2 = Time Set
-    // Menu 3 = lighting
+    // Menu 2 = lights
+    // Menu 3 = rtc
     if (lastButtonState1 == HIGH && buttonState1 == LOW) {
         reescriure = true;
         if (menu == 0) {
@@ -379,12 +414,11 @@ void loop() {
                 performOTA(newVersion);            // Inici OTA
             } else {
                 Serial.println("Tens la última versió.");
-                lastUpdate = rtc.now();
+                lastUpdateOTA = rtc.now();
                 needOTA = 2;
                 updateLCD2004(menu, menuIndex);
             }
-        }
-        if (menu == 1) {
+        }else if (menu == 1) {
             if (ledStrips[0].targetBrightness > 0) {
                 lastBri0 = ledStrips[0].targetBrightness;
                 ledStrips[0].targetBrightness = 0;  // apaga la tira 1
@@ -392,15 +426,25 @@ void loop() {
                 ledStrips[0].targetBrightness = lastBri0;  // posa brillantor mitjana
             }
             enviaBrillantor(0);  // envia només per la tira 1
+        }else
+        if (menu == 2) {
+            reescriure = true;
+            debugPrint("Sincronitzant NTP...");
+
+            if (ntpSyncRTC(rtc)) {
+                lastUpdateRTC = rtc.now();
+                debugPrint("RTC actualitzat!");
+            } else {
+                debugPrint("Error NTP");
+            }
         }
     }
     if (lastButtonState2 == HIGH && buttonState2 == LOW) {
         reescriure  = true;
         reescriure = true;
         if (menu == 0) {
-            // Acció menú 0
-        }
-        if (menu == 1) {
+            // Acció firmware
+        }else if (menu == 1) {
             if (ledStrips[1].targetBrightness > 0) {
                 lastBri1 = ledStrips[1].targetBrightness;
                 ledStrips[1].targetBrightness = 0;  // apaga la tira 2
@@ -408,30 +452,39 @@ void loop() {
                 ledStrips[1].targetBrightness = lastBri1;  // posa brillantor mitjana
             }
             enviaBrillantor(1);  // envia només per la tira 1
+        }else
+        if (menu == 2) {
+            // Acció rtc
         }
     }
     if (lastButtonState3 == HIGH && buttonState3 == LOW) {
         reescriure  = true;
         reescriure = true;
         if (menu == 0) {
-            // Acció menú 0
-        }
+            // Acció firmware
+        }else
         if (menu == 1) {
-            // Acció menú 1
+            // Acció llums
+        }else
+        if (menu == 2) {
+            // Acció rtc
         }
     }
     if (lastButtonState4 == HIGH && buttonState4 == LOW) {
         reescriure = true;
         reescriure = true;
         if (menu == 0) {
-            // Acció menú 0
-        }
+            // Acció firmware
+        }else
         if (menu == 1) {
-            // Acció menú 1
+            // Acció llums
+        }else
+        if (menu == 2) {
+            // Acció rtc
         }
     }
     if (lastButtonState5 == HIGH && buttonState5 == LOW) {
-        if (menu == 1) menu = 0;
+        if (menu == 2) menu = 0;
         else menu += 1;   // canvia de menú
         reescriure = true;
     }
@@ -466,7 +519,6 @@ void loop() {
     lastButtonState8 = buttonState8;
     lastButtonState9 = buttonState9;
     lastButtonState10 = buttonState10;
-
 
     updateOLED(buf);
     if (reescriure) {
