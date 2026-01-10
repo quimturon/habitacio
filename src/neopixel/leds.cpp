@@ -13,7 +13,10 @@ void setupLEDs() {
     for(int i=0;i<NUM_STRIPS;i++){
         ledStrips[i].strip.begin();
         ledStrips[i].strip.show();
+        ledStrips[i].brightness = 0;
+        ledStrips[i].targetBrightness = 0;
         ledStrips[i].strip.setBrightness(ledStrips[i].brightness);
+        ledStrips[i].preset = 2;
     }
 
     if (esp_now_init() != ESP_OK) {
@@ -41,11 +44,11 @@ void LEDTask(void *pvParameters) {
                         ledStrips[s].strip.setPixelColor(i,color);
                     }
                     break;
-                case 2: // STATIC
-                    for(int i=0;i<NUM_LEDS;i++) ledStrips[s].strip.setPixelColor(i,ledStrips[s].strip.Color(255,255,255,255));
+                case 2: // WARM
+                    for(int i=0;i<NUM_LEDS;i++) ledStrips[s].strip.setPixelColor(i,ledStrips[s].strip.Color(100,0,0,255));
                     break;
-                case 3: // WARM
-                    for(int i=0;i<NUM_LEDS;i++) ledStrips[s].strip.setPixelColor(i,ledStrips[s].strip.Color(255,120,0,255));
+                case 3: // STATIC
+                    for(int i=0;i<NUM_LEDS;i++) ledStrips[s].strip.setPixelColor(i,ledStrips[s].strip.Color(255,255,255,255));
                     break;
                 case 4: // COLORCYCLE
                     static uint16_t hueCycle = 0;
@@ -58,7 +61,7 @@ void LEDTask(void *pvParameters) {
             ledStrips[s].strip.show();
         }
         hue += 256;
-        vTaskDelay(20/portTICK_PERIOD_MS);
+        vTaskDelay(5/portTICK_PERIOD_MS);
     }
 }
 

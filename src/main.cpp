@@ -80,6 +80,26 @@ uint8_t lastBri1;
 int minBri = 5;
 int maxBri = 255;
 uint8_t briSteps = 25;
+String nominalPreset[] = {"","","",""};
+
+String callPreset(int stripIndex, int presetIndex) {
+    if (presetIndex == 1) {
+        nominalPreset[stripIndex] = "Rainbow";
+        return "Rainbow";
+    }else if (presetIndex == 2) {
+        nominalPreset[stripIndex] = "Warm";
+        return "Warm";
+    }else if (presetIndex == 3) {
+        nominalPreset[stripIndex] = "White";
+        return "White";
+    }else if (presetIndex == 4) {
+        nominalPreset[stripIndex] = "Cycle";
+        return "Cycle";
+    }else{
+        nominalPreset[stripIndex] = "Off";
+        return "Off";
+    }
+}
 
 // ================= PIN DEFINITIONS =================
 #define ENC1_A 34
@@ -186,10 +206,10 @@ void updateLCD2004(int menu, int menuIndex) {
             lcd2004.print(buf);
         }
     } else if (menu == 1){
-        lcd2004.setCursor(0,0); lcd2004.printf("Despatx  %d%%", ledStrips[0].targetBrightness);
-        lcd2004.setCursor(0,1); lcd2004.printf("Paret    %d%%", ledStrips[1].targetBrightness);
-        lcd2004.setCursor(0,2); lcd2004.printf("Tauleta  %d%%", ledStrips[2].targetBrightness);
-        lcd2004.setCursor(0,3); lcd2004.printf("General  %d%%", ledStrips[3].targetBrightness);
+        lcd2004.setCursor(0,0); lcd2004.printf("Despatx %3d%% %s", ledStrips[0].targetBrightness, callPreset(0, ledStrips[0].preset));
+        lcd2004.setCursor(0,1); lcd2004.printf("Paret   %3d%% %s", ledStrips[1].targetBrightness, callPreset(1, ledStrips[1].preset));
+        lcd2004.setCursor(0,2); lcd2004.printf("Tauleta %3d%% %s", ledStrips[2].targetBrightness, callPreset(2, ledStrips[2].preset));
+        lcd2004.setCursor(0,3); lcd2004.printf("General %3d%% %s", ledStrips[3].targetBrightness, callPreset(3, ledStrips[3].preset));
     }
     else if (menu == 2) {
         lcd2004.setCursor(0,0);
@@ -403,6 +423,7 @@ void loop() {
     buttonState8 = digitalRead(ENC3_BTN);
     buttonState9 = digitalRead(ENC4_BTN);
     buttonState10 = digitalRead(ENC5_BTN);
+
 
     // Detectar canvi (només quan es prem)
     // Menu 1 = Firmware Update
