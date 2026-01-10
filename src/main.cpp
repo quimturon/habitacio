@@ -199,7 +199,7 @@ void updateOLED(char* buf) {
   display.setCursor(0,40); display.printf("E4:%ld BE:%d   B:%d", encVal[3], buttonState9, buttonState4);
   display.setCursor(0,50); display.printf("E5:%ld BE:%d   B:%d", encVal[4], buttonState10, buttonState5);
   // RTC
-  display.setCursor(SCREEN_WIDTH-8*6, SCREEN_HEIGHT-8); display.print(buf);
+  display.setCursor(SCREEN_WIDTH-6*6, SCREEN_HEIGHT-8); display.print(buf);
   display.display();
 }
 
@@ -319,7 +319,7 @@ void loop() {
 
     // --- RTC ---
     DateTime now = rtc.now();
-    char buf[9]; snprintf(buf,sizeof(buf),"%02d:%02d:%02d", now.hour(), now.minute(), now.second());
+    char buf[9]; snprintf(buf,sizeof(buf),"%02d:%02d", now.hour(), now.minute());
 
     // --- Encoders ---
     bool encoderMoved = false;
