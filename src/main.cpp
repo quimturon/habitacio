@@ -9,6 +9,7 @@
 #include <ArduinoJson.h>
 #include <Update.h>
 #include <EEPROM.h>
+#include <esp_now.h>
 //llibreries de pantalles
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
@@ -21,6 +22,7 @@
 //llibreries propies
 #include "ota/ota.h"
 #include "wifi/wifi_manager.h"
+#include "neopixel/leds.h"
 
 // ================= MENU SETTING =================
 int menu = 0;
@@ -52,6 +54,18 @@ const char* firmwareURL = "https://github.com/quimturon/habitacio/releases/lates
 #define SSID_ADDR 0       // Offset SSID
 #define PASS_ADDR 64      // Offset password
 #define VERSION_ADDR 128  // Offset firmware
+
+// --- espNOW ---
+uint8_t controladorAdress[] = {0x80, 0xF3, 0xDA, 0x65, 0x5C, 0xB8};
+
+// --- ledStrips ---
+uint8_t bri0;
+uint8_t bri1;
+uint8_t targetBri0;
+uint8_t targetBri1;
+uint8_t lastBri0;
+uint8_t lastBri1;
+uint8_t briSteps = 25;
 
 // ================= PIN DEFINITIONS =================
 #define ENC1_A 34
@@ -151,13 +165,14 @@ void updateLCD2004(int menu, int menuIndex) {
             lcd2004.print("Tot actualitzat el:");
             lcd2004.setCursor(0,3);
             char buf[17]; // DD/MM/YYYY HH:MM
-            sprintf(buf, " %02d/%02d/%04d  %02d:%02d",
+            sprintf(buf, "%02d/%02d/%04d %02d:%02d",
                     lastUpdate.day(), lastUpdate.month(), lastUpdate.year(),
                     lastUpdate.hour(), lastUpdate.minute());
             lcd2004.print(buf);
         }
     } else if (menu == 1){
-        lcd2004.setCursor(0,0); lcd2004.print("Despatx: ON");
+        lcd2004.setCursor(0,0); lcd2004.printf("Llum 0: %d%%", ledStrips[0].targetBrightness);
+        lcd2004.setCursor(0,1); lcd2004.printf("Llum 1: %d%%", ledStrips[1].targetBrightness);
     }
 }
 
@@ -195,6 +210,7 @@ void debugPrint(const String &msg){
   display.display();
 }
 
+
 // --- Setup ---
 void setup() {
 
@@ -229,6 +245,31 @@ void setup() {
     display.setCursor(0,0);
     display.println("WIFI OK");
     display.display();
+
+    // Setup LEDs i ESP-NOW
+    setupLEDs();
+
+    xTaskCreatePinnedToCore(
+        LEDTask,
+        "LED Task",
+        4000,
+        NULL,
+        1,
+        NULL,
+        0
+    );
+
+    esp_now_peer_info_t peerInfo = {};
+    memcpy(peerInfo.peer_addr, controladorAdress, 6);
+    peerInfo.channel = 0;
+    peerInfo.encrypt = false;
+
+    if (!esp_now_is_peer_exist(controladorAdress)) {
+    if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+        Serial.println("❌ Error afegint el peer");
+        return;
+    }
+  }
 
     // LCDs
     lcd2004.init(); 
@@ -281,8 +322,27 @@ void loop() {
     // --- Encoders ---
     bool encoderMoved = false;
 
-    if (enc1.encoderChanged()) { encVal[0] = enc1.readEncoder(); encoderMoved = true; }
-    if (enc2.encoderChanged()) { encVal[1] = enc2.readEncoder(); encoderMoved = true; }
+    if(enc1.encoderChanged()) { // controla la tira 1
+        encVal[0] = enc1.readEncoder();
+        int delta = enc1.readEncoder();
+        if(delta>0) ledStrips[0].targetBrightness = min(ledStrips[0].targetBrightness+briSteps,255);
+        else if(delta<0) ledStrips[0].targetBrightness = max(ledStrips[0].targetBrightness-briSteps,0);
+        enviaBrillantor(0);
+        enc1.reset();
+        reescriure = true;
+    }
+
+    if(enc2.encoderChanged()) { // controla la tira 1
+        encVal[1] = enc2.readEncoder();
+        int delta = enc2.readEncoder();
+        if(delta>0) ledStrips[1].targetBrightness = min(ledStrips[1].targetBrightness+briSteps,255);
+        else if(delta<0) ledStrips[1].targetBrightness = max(ledStrips[1].targetBrightness-briSteps,5);
+        enviaBrillantor(1);
+        enc2.reset();
+        reescriure = true;
+    }
+
+
     if (enc3.encoderChanged()) { encVal[2] = enc3.readEncoder(); encoderMoved = true; }
     if (enc4.encoderChanged()) { encVal[3] = enc4.readEncoder(); encoderMoved = true; }
     if (enc5.encoderChanged()) { encVal[4] = enc5.readEncoder(); encoderMoved = true; }
@@ -323,7 +383,13 @@ void loop() {
             }
         }
         if (menu == 1) {
-            //Accio hora 1
+            if (ledStrips[0].targetBrightness > 0) {
+                lastBri0 = ledStrips[0].targetBrightness;
+                ledStrips[0].targetBrightness = 0;  // apaga la tira 1
+            } else {
+                ledStrips[0].targetBrightness = lastBri0;  // posa brillantor mitjana
+            }
+            enviaBrillantor(0);  // envia només per la tira 1
         }
     }
     if (lastButtonState2 == HIGH && buttonState2 == LOW) {
@@ -333,7 +399,13 @@ void loop() {
             // Acció menú 0
         }
         if (menu == 1) {
-            // Acció menú 1
+            if (ledStrips[1].targetBrightness > 0) {
+                lastBri1 = ledStrips[1].targetBrightness;
+                ledStrips[1].targetBrightness = 0;  // apaga la tira 2
+            } else {
+                ledStrips[1].targetBrightness = lastBri1;  // posa brillantor mitjana
+            }
+            enviaBrillantor(1);  // envia només per la tira 1
         }
     }
     if (lastButtonState3 == HIGH && buttonState3 == LOW) {
@@ -362,9 +434,13 @@ void loop() {
         reescriure = true;
     }
     if (lastButtonState6 == HIGH && buttonState6 == LOW) {
+        ledStrips[0].preset += 1;
+        if(ledStrips[0].preset > NUM_PRESETS) ledStrips[0].preset = 1;
         reescriure = true;
     }
     if (lastButtonState7 == HIGH && buttonState7 == LOW) {
+        ledStrips[1].preset += 1;
+        if(ledStrips[1].preset > NUM_PRESETS) ledStrips[1].preset = 1;
         reescriure = true;
     }
     if (lastButtonState8 == HIGH && buttonState8 == LOW) {
