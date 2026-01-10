@@ -14,6 +14,16 @@
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
 #include <LiquidCrystal_I2C.h>
+//fonts OLED
+#include <Fonts/FreeMonoBoldOblique24pt7b.h>
+#include <Fonts/FreeMono9pt7b.h>
+#include <Fonts/FreeMono12pt7b.h>
+#include <Fonts/FreeMono18pt7b.h>
+#include <Fonts/FreeMono24pt7b.h>
+#include <Fonts/FreeSans9pt7b.h>
+#include <Fonts/FreeSans12pt7b.h>
+#include <Fonts/FreeSans18pt7b.h>
+#include <Fonts/FreeSans24pt7b.h>
 //llibreries de llums
 #include <Adafruit_NeoPixel.h>
 //llibreries de inputs
@@ -215,16 +225,12 @@ void updateLCD1602(int menu, int menuIndex) {
 
 void updateOLED(char* buf) {
   display.clearDisplay();
-  display.setTextSize(1); display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0,0); display.println("ENC+BUTTONS");
-  display.setCursor(0,10); display.printf("E1:%ld BE:%d   B:%d", encVal[0],buttonState6 ,buttonState1);
-  display.setCursor(0,20); display.printf("E2:%ld BE:%d   B:%d", encVal[1],buttonState7 ,buttonState2);
-  display.setCursor(0,30); display.printf("E3:%ld BE:%d   B:%d", encVal[2], buttonState8, buttonState3);
-  display.setCursor(0,40); display.printf("E4:%ld BE:%d   B:%d", encVal[3], buttonState9, buttonState4);
-  display.setCursor(0,50); display.printf("E5:%ld BE:%d   B:%d", encVal[4], buttonState10, buttonState5);
+  display.setTextSize(1); display.setTextColor(SSD1306_WHITE); display.setFont(&FreeSans18pt7b);
+  display.setCursor(16, display.height()/2+14); display.print(buf);
   // RTC
-  display.setCursor(SCREEN_WIDTH-6*6, SCREEN_HEIGHT-8); display.print(buf);
+  display.setCursor(SCREEN_WIDTH-6*6, SCREEN_HEIGHT-8);
   display.display();
+  display.setFont();
 }
 
 void debugPrint(const String &msg){
