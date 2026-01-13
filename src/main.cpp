@@ -87,13 +87,13 @@ String callPreset(int stripIndex, int presetIndex) {
         nominalPreset[stripIndex] = "Rainbow";
         return "Rainbow";
     }else if (presetIndex == 2) {
-        nominalPreset[stripIndex] = "Warm";
+        nominalPreset[stripIndex] = "Calid";
         return "Warm";
     }else if (presetIndex == 3) {
-        nominalPreset[stripIndex] = "White";
+        nominalPreset[stripIndex] = "Blanc";
         return "White";
     }else if (presetIndex == 4) {
-        nominalPreset[stripIndex] = "Cycle";
+        nominalPreset[stripIndex] = "Colorit";
         return "Cycle";
     }else{
         nominalPreset[stripIndex] = "Off";
