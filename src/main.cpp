@@ -189,6 +189,8 @@ void updateLCD2004(int menu, int menuIndex) {
         lcd2004.setCursor(0,0); 
         lcd2004.print("Firmware: "); 
         lcd2004.print(FW_VERSION);
+        lcd2004.setCursor(0,1);
+        lcd2004.printf("Mac: %s", WiFi.macAddress().c_str());
 
         if (needOTA == 1) {
             lcd2004.setCursor(0,2); lcd2004.print("Nova versio:"); 
