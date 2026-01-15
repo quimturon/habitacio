@@ -1,4 +1,5 @@
 #include "leds.h"
+#include <esp_now.h>
 
 #define NUM_STRIPS 2
 #define NUM_LEDS 42

@@ -68,7 +68,7 @@ const char* firmwareURL = "https://github.com/quimturon/habitacio/releases/lates
 #define VERSION_ADDR 128  // Offset firmware
 
 // --- espNOW ---
-uint8_t controladorAdress[] = {0x80, 0xF3, 0xDA, 0x65, 0x5C, 0xB8};
+uint8_t controladorAdress[] = {0x84, 0x1F, 0xE8, 0x69, 0x3B, 0x9C};
 
 // --- ledStrips ---
 uint8_t bri0;
