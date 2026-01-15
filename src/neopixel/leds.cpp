@@ -62,7 +62,7 @@ void LEDTask(void *pvParameters) {
             ledStrips[s].strip.show();
         }
         hue += 256;
-        if (ledStrips[s].brightness != ledStrips[s].targetBrightness) {vTaskDelay(5/portTICK_PERIOD_MS);}
+        if (ledStrips[0].brightness != ledStrips[0].targetBrightness) {vTaskDelay(5/portTICK_PERIOD_MS);}
         else {vTaskDelay(5/portTICK_PERIOD_MS);}
     }
 }
