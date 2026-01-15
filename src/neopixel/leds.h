@@ -7,6 +7,7 @@
 
 // === Constants ===
 #define NUM_PRESETS 4
+extern bool reescriure;
 
 // Estrcutura de tira
 struct LEDStrip {
