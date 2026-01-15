@@ -90,11 +90,11 @@ void onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len){
         enviaBrillantor(0);
     }
     else if(msg=="+bri"){
-        for(int s=0;s<NUM_STRIPS;s++) ledStrips[0].targetBrightness = min(ledStrips[s].targetBrightness+25,255);
+        for(int s=0;s<NUM_STRIPS;s++) ledStrips[0].targetBrightness = min(ledStrips[0].targetBrightness+50,255);
         enviaBrillantor(0);
     }
     else if(msg=="-bri"){
-        for(int s=0;s<NUM_STRIPS;s++) ledStrips[0].targetBrightness = max(ledStrips[s].targetBrightness-25,5);
+        for(int s=0;s<NUM_STRIPS;s++) ledStrips[0].targetBrightness = max(ledStrips[0].targetBrightness-50,5);
         enviaBrillantor(0);
     }
     else if(msg=="preset"){
