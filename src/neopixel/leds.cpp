@@ -82,6 +82,30 @@ void enviaBrillantor(int stripIndex) {
 void onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len){
     String msg = String((char*)incomingData); msg.trim();
     Serial.printf("📩 Rebut: %s\n",msg.c_str());
+    // totes les leds
+    if(msg=="toggle"){
+        for(int s=0;s<NUM_STRIPS;s++) ledStrips[s].targetBrightness = (ledStrips[s].targetBrightness>0)?0:150;
+        enviaBrillantor(0);
+    }
+    else if(msg=="+bri"){
+        for(int s=0;s<NUM_STRIPS;s++) ledStrips[s].targetBrightness = min(ledStrips[s].targetBrightness+25,255);
+        enviaBrillantor(0);
+    }
+    else if(msg=="-bri"){
+        for(int s=0;s<NUM_STRIPS;s++) ledStrips[s].targetBrightness = max(ledStrips[s].targetBrightness-25,5);
+        enviaBrillantor(0);
+    }
+    else if(msg=="preset"){
+        for(int s=0;s<NUM_STRIPS;s++){
+            ledStrips[s].preset += 1;
+            if(ledStrips[s].preset>NUM_PRESETS) ledStrips[s].preset=1;
+        }
+        enviaBrillantor(1);
+    }else if(msg=="toggle"){
+        for(int s=0;s<NUM_STRIPS;s++) ledStrips[s].targetBrightness = (ledStrips[s].targetBrightness>0)?0:150;
+        enviaBrillantor(1);
+    }
+    // Leds 1
     if(msg=="toggle0"){
         for(int s=0;s<NUM_STRIPS;s++) ledStrips[s].targetBrightness = (ledStrips[s].targetBrightness>0)?0:150;
         enviaBrillantor(0);
@@ -100,6 +124,7 @@ void onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len){
             if(ledStrips[s].preset>NUM_PRESETS) ledStrips[s].preset=1;
         }
         enviaBrillantor(1);
+    // Leds 2
     }else if(msg=="toggle1"){
         for(int s=0;s<NUM_STRIPS;s++) ledStrips[s].targetBrightness = (ledStrips[s].targetBrightness>0)?0:150;
         enviaBrillantor(1);
