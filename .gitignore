@@ -3,4 +3,8 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+<<<<<<< HEAD
 .version.txt
+=======
+version.txt
+>>>>>>> b24a0fabd974b7ea598d59844411bf1dbd0244b6
