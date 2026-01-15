@@ -62,7 +62,8 @@ void LEDTask(void *pvParameters) {
             ledStrips[s].strip.show();
         }
         hue += 256;
-        vTaskDelay(5/portTICK_PERIOD_MS);
+        if (ledStrips[s].brightness != ledStrips[s].targetBrightness) {vTaskDelay(5/portTICK_PERIOD_MS);}
+        else {vTaskDelay(5/portTICK_PERIOD_MS);}
     }
 }
 
@@ -85,25 +86,25 @@ void onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len){
     Serial.printf("📩 Rebut: %s\n",msg.c_str());
     // totes les leds
     if(msg=="toggle"){
-        for(int s=0;s<NUM_STRIPS;s++) ledStrips[s].targetBrightness = (ledStrips[s].targetBrightness>0)?0:150;
+        for(int s=0;s<NUM_STRIPS;s++) ledStrips[0].targetBrightness = (ledStrips[0].targetBrightness>0)?0:150;
         enviaBrillantor(0);
     }
     else if(msg=="+bri"){
-        for(int s=0;s<NUM_STRIPS;s++) ledStrips[s].targetBrightness = min(ledStrips[s].targetBrightness+25,255);
+        for(int s=0;s<NUM_STRIPS;s++) ledStrips[0].targetBrightness = min(ledStrips[s].targetBrightness+25,255);
         enviaBrillantor(0);
     }
     else if(msg=="-bri"){
-        for(int s=0;s<NUM_STRIPS;s++) ledStrips[s].targetBrightness = max(ledStrips[s].targetBrightness-25,5);
+        for(int s=0;s<NUM_STRIPS;s++) ledStrips[0].targetBrightness = max(ledStrips[s].targetBrightness-25,5);
         enviaBrillantor(0);
     }
     else if(msg=="preset"){
         for(int s=0;s<NUM_STRIPS;s++){
-            ledStrips[s].preset += 1;
-            if(ledStrips[s].preset>NUM_PRESETS) ledStrips[s].preset=1;
+            ledStrips[0].preset += 1;
+            if(ledStrips[0].preset>NUM_PRESETS) ledStrips[0].preset=1;
         }
         enviaBrillantor(1);
     }else if(msg=="toggle"){
-        for(int s=0;s<NUM_STRIPS;s++) ledStrips[s].targetBrightness = (ledStrips[s].targetBrightness>0)?0:150;
+        for(int s=0;s<NUM_STRIPS;s++) ledStrips[0].targetBrightness = (ledStrips[0].targetBrightness>0)?0:150;
         enviaBrillantor(1);
     }
     // Leds 1
