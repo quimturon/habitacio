@@ -144,4 +144,5 @@ void onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len){
         }
         enviaBrillantor(1);
     }
+    reescriure = true;
 }
